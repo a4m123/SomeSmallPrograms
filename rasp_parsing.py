@@ -3,7 +3,6 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import numpy as np
-import re
 import time
 import random
 
@@ -89,7 +88,8 @@ def main(week, weeks_ahead, user = 506784):
             url = 'https://rasp.tpu.ru/user_'+ str(user) + '/2023/' + str(week + i) + '/view.html?is_archive=0'
             df_stable.append(rasp_parse(url))
             time.sleep(random.randint(5, 10)) # to avoid dead TPU server
-        for i in range(4):
+            
+        for i in range(weeks_ahead):
             changed_schedule = check_dataframes(df_stable[i], df_new[i], week + i)
             if changed_schedule:
                 df_stable[i] = df_new[i]
