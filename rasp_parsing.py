@@ -11,10 +11,12 @@ import random
 TODO: 
 1. Обработать случай, когда расписание не загрузилось (сервер ТПУ упал)
 2. Сохранение расписания в файл и его загрузка при запуске программы
+3. Убедиться, что изменение расписания отрабатывается корректно
+4.
 '''
 
 # load URL and parse it
-def work(url):
+def rasp_parse(url):
     try:
         r = requests.get(url)
     except requests.exceptions.ConnectionError:
@@ -22,12 +24,11 @@ def work(url):
     
     # parse HTML
     soup = BeautifulSoup(r.text, 'html.parser')
-    # find div with id = 'raspisanie-table'
+
     rasp_table = soup.find('div', {'id': 'raspisanie-table'})
-    # in tbody find all td with style=background-color
     rasp_table = rasp_table.find('tbody')
-    # make a list of tr
     tr_list = rasp_table.find_all('tr')
+
     monday, tuesday, wednesday, thursday, friday, saturday = [], [], [], [], [], []
     for tr_day in tr_list:
         monday.append(tr_day.find_all('td')[1])
@@ -38,7 +39,6 @@ def work(url):
         saturday.append(tr_day.find_all('td')[6])
 
     df = pd.DataFrame(columns=['time', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'])
-    
     df['time'] = ['8:30-10:05', 
                   '10:25-12:00', 
                   '12:40-14:15', 
@@ -61,11 +61,9 @@ def work(url):
     
 def check_dataframes(df_stable, df_new, week):
     if df_stable.equals(df_new):
-        #print time and message
         print(time.strftime("%H:%M:%S", time.localtime()), f'No changes for week {week}')
         return False # no changes
     else:
-        #print time and message, mismatched values
         print(time.strftime("%H:%M:%S", time.localtime()), f'Changes detected for week {week}')
         print('MISMATCHED VALUES:')
         for i in range(len(df_stable)):
@@ -74,34 +72,32 @@ def check_dataframes(df_stable, df_new, week):
                     print('row =', i+1, 'column =', j+1, 'value =', df_stable.iloc[i, j])
         return True # changes detected
 
-def main():
-    week = 12
-    url = 'https://rasp.tpu.ru/user_506784/2023/' + str(week) + '/view.html?is_archive=0'
+def main(week, weeks_ahead, user = 506784):
+    #url = 'https://rasp.tpu.ru/user_'+ str(user) + '/2023/' + str(week) + '/view.html?is_archive=0'
     df_stable = [] # 0 - current week, 1 - next week, 2 - next next week, 3 - next next next week
-    for i in range (4):
-        df_stable.append(work(url))
-        week += 1
-        url = 'https://rasp.tpu.ru/user_506784/2023/' + str(week) + '/view.html?is_archive=0'
+    for i in range (weeks_ahead):
+        url = 'https://rasp.tpu.ru/user_'+ str(user) + '/2023/' + str(week + i) + '/view.html?is_archive=0'
+        df_stable.append(rasp_parse(url))
         time.sleep(random.randint(5, 10)) # to avoid dead TPU server
-    week -= 4
     print('Stable schedule loaded')
 
     changed_schedule = False
     while True:
-        time.sleep(random.randint(60, 120)) # 15-60 min
+        time.sleep(random.randint(60, 120)) # 1-2 min sleep - wait for new schedule
         df_new = []
-        for i in range (4):
-            df_new.append(work(url))
-            week += 1
-            url = 'https://rasp.tpu.ru/user_506784/2023/' + str(week) + '/view.html?is_archive=0'
+        for i in range (weeks_ahead):
+            url = 'https://rasp.tpu.ru/user_'+ str(user) + '/2023/' + str(week + i) + '/view.html?is_archive=0'
+            df_stable.append(rasp_parse(url))
             time.sleep(random.randint(5, 10)) # to avoid dead TPU server
-        week -= 4
         for i in range(4):
             changed_schedule = check_dataframes(df_stable[i], df_new[i], week + i)
             if changed_schedule:
-                df_stable = df_new
+                df_stable[i] = df_new[i]
                 changed_schedule = False
                 break
 
 if __name__ == '__main__':
-    main()
+    week = 12
+    user = 506784
+    weeks_ahead = 4
+    main(week, weeks_ahead, user)
